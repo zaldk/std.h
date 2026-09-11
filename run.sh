@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-clear && clang -o exe main.c -std=c89 -pedantic -Wall -Wextra -g && ./exe
+clear && clang -o main.exe main.c -std=c89 -pedantic -Wall -Wextra -g && ./main.exe
