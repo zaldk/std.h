@@ -1,0 +1,4 @@
+Index:
+  StandardLibrary: No
+CompileFlags:
+  Add: [ -std=c89, -pedantic, -Wno-empty-translation-unit ]
