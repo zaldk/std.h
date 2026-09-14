@@ -1,4 +1,18 @@
+Diagnostics:
+  Suppress:
+    - incompatible-library-redeclaration
+    - builtin-declaration-mismatch
+    - macro-redefined
+    - unused-includes
 Index:
   StandardLibrary: No
 CompileFlags:
-  Add: [ -std=c89, -pedantic, -Wno-empty-translation-unit ]
+  Add: [
+    -std=c89,
+    -pedantic,
+    -Wno-empty-translation-unit,
+    -Wno-dollar-in-identifier-extension,
+    -DSTD_IMPLEMENTATION,
+    -DSTD_LINUX_IMPLEMENTATION,
+    -DSTD_COMMON_IMPLEMENTATION,
+  ]
