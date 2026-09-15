@@ -5,7 +5,8 @@
 #include "std.linux.tables.h"
 
 #define INSERT_ENTRY_POINT() __asm__ (MULTILINE_STRING( \
-    .globl _start                      \n            \
+    .intel_syntax noprefix             \n            \
+    .weak _start                      \n            \
     _start:                            \n            \
     \t xor     rbp, rbp                \n            \
     \t mov     rdi, [rsp]              \n /* argc */ \
@@ -13,7 +14,7 @@
     \t lea     rdx, [rsp + rdi*8 + 16] \n /* envp */ \
     \t mov     [rip + __envp], rdx     \n            \
     \t and     rsp, -16                \n            \
-    \t call    start                   \n            \
+    \t call    main                    \n            \
     \t mov     rdi, rax                \n            \
     \t mov     rax, 60                 \n /* exit */ \
     \t syscall                         \n            \
@@ -71,7 +72,11 @@ i64 syscall_wait4(i64 pid, i64* status, i64 options, struct resource_usage* usag
 #define X(NAME, VALUE) static const i64 MMAP_FLAG_##NAME = VALUE;
     MMAP_FLAGS
 #undef X
+#define X(NAME, VALUE) static const i64 MREMAP_FLAG_##NAME = VALUE;
+    MREMAP_FLAGS
+#undef X
 i64 syscall_mmap(void* address, u64 size, i64 protection, i64 flags, i64 file_descriptor, i64 offset);
+i64 syscall_mremap(void* old_address, u64 old_size, u64 new_size, u64 flags, void* new_address);
 i64 syscall_munmap(void* address, u64 size);
 
 
@@ -111,6 +116,20 @@ i64 syscall_rename(char* old, char* new);
 i64 syscall_mkdir(char* path, i64 mode);
 i64 syscall_unlink(char* path);
 
+/* from linux-7.2/tools/include/nolibc/types.h */
+struct directory_entry {
+	u64            inode;
+	i64            offset;   /* should not use */
+	unsigned short self_size; /* no idea how to use */
+	unsigned char  type;
+	char           name[];
+};
+#define X(NAME, VALUE) static const i64 ENTRY_TYPE_##NAME = VALUE;
+    DIR_ENTRY_TYPES
+#undef X
+i64 syscall_getdents64(i64 file_descriptor, struct directory_entry* dirent, u64 count);
+
+
 
 
 
@@ -144,6 +163,13 @@ i64 syscall_generic(u64 code, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5, 
 }
 
 
+__attribute__((noreturn))
+void syscall_exit(i64 exit_code) {
+    (void)syscall_generic(SYSCALL_EXIT, exit_code, 0, 0, 0, 0, 0);
+    UNREACHABLE();
+}
+
+
 i64 syscall_read(i64 file_descriptor, char* buffer, u64 length) {
     return syscall_generic(SYSCALL_READ, file_descriptor, (u64)buffer, length, 0, 0, 0);
 }
@@ -167,6 +193,9 @@ i64 syscall_wait4(i64 pid, i64* status, i64 options, struct resource_usage* usag
 
 i64 syscall_mmap(void* address, u64 size, i64 protection, i64 flags, i64 file_descriptor, i64 offset) {
     return syscall_generic(SYSCALL_MMAP, (u64)address, size, protection, flags, file_descriptor, offset);
+}
+i64 syscall_mremap(void* old_address, u64 old_size, u64 new_size, u64 flags, void* new_address) {
+    return syscall_generic(SYSCALL_MREMAP, (u64)old_address, old_size, new_size, flags, (u64)new_address, 0);
 }
 i64 syscall_munmap(void* address, u64 size) {
     return syscall_generic(SYSCALL_MUNMAP, (u64)address, size, 0, 0, 0, 0);
@@ -205,12 +234,10 @@ i64 syscall_unlink(char* path) {
     return syscall_generic(SYSCALL_UNLINK, (u64)path, 0, 0, 0, 0, 0);
 }
 
-__attribute__((noreturn))
-void syscall_exit(i64 exit_code) {
-    (void)syscall_generic(SYSCALL_EXIT, exit_code, 0, 0, 0, 0, 0);
-    UNREACHABLE();
-}
 
+i64 syscall_getdents64(i64 file_descriptor, struct directory_entry* dirent, u64 count) {
+    return syscall_generic(SYSCALL_GETDENTS64, file_descriptor, (u64)dirent, count, 0, 0, 0);
+}
 
 
 void print(const char* format, ...) {
@@ -223,50 +250,8 @@ void print(const char* format, ...) {
 }
 
 
-i64 get_file_size(const char* filename) {
-    struct stat buffer = {0};
-    i64 ret = syscall_stat(filename, &buffer);
-    if (ret < 0) return -CODE_ERROR;
-    return buffer.file_size;
-}
-
-
-i64 pool_try_init(struct pool* pool) {
-    if (pool->ptr != NULL) return CODE_NOOP;
-
-    i64 result = syscall_mmap(
-        NULL, POOL_DEFAULT_CAPACITY,
-        MMAP_PROT_READ | MMAP_PROT_WRITE,
-        MMAP_FLAG_ANONYMOUS | MMAP_FLAG_PRIVATE,
-        -1, 0
-    );
-    if (result < 0) return CODE_ERROR;
-
-    pool->ptr  = (u8*)result;
-    pool->next = NULL;
-    pool->len  = 0;
-    pool->cap  = POOL_DEFAULT_CAPACITY;
-
-    return CODE_OK;
-}
-i64 pool_try_destroy(struct pool* pool) {
-    if (pool == NULL) return CODE_NOOP;
-
-    if (pool->next != NULL) {
-        i64 return_code = pool_try_destroy(pool->next);
-        if (return_code == CODE_ERROR) return CODE_ERROR;
-    }
-
-    if (pool->ptr == NULL) return CODE_NOOP;
-
-    i64 result = syscall_munmap(pool->ptr, pool->cap);
-    if (result < 0) return CODE_ERROR;
-
-    return CODE_OK;
-}
-
-i64 block_make(struct block* block, i64 size) {
-    i64 actual_size = ROUND_UP_4K(size);
+i64 block_make(struct block* block, i64 requested_size) {
+    i64 actual_size = ROUND_UP_4K(requested_size);
     i64 result = syscall_mmap(
         NULL, actual_size,
         MMAP_PROT_READ | MMAP_PROT_WRITE,
@@ -275,32 +260,36 @@ i64 block_make(struct block* block, i64 size) {
     );
     if (result < 0) return CODE_ERROR;
     block->ptr = (u8*)result;
-    block->len = actual_size;
+    block->cap = actual_size;
+    block->len = 0;
+    return CODE_OK;
+}
+i64 block_resize(struct block* block, i64 new_size) {
+    if (block->cap > new_size) return CODE_NOOP;
+
+    if (block->ptr == NULL) return block_make(block, new_size);
+
+    i64 actual_new_size = ROUND_UP_4K(new_size);
+    i64 result = syscall_mremap(block->ptr, block->cap, actual_new_size, MREMAP_FLAG_MAYMOVE, NULL);
+    if (result < 0) {
+        print("[ERROR] Count not resize: %ld\n", result);
+        return CODE_ERROR;
+    }
+    block->ptr = (u8*)result;
+    block->cap = actual_new_size;
+
     return CODE_OK;
 }
 i64 block_destroy(struct block* block) {
     if (block->ptr == NULL) return CODE_NOOP;
-    i64 result = syscall_munmap(block->ptr, block->len);
+    i64 result = syscall_munmap(block->ptr, block->cap);
     if (result < 0) return CODE_ERROR;
     return CODE_OK;
 }
-i64 block_resize(struct block* block, i64 new_size) {
-    if (block->len > new_size) return CODE_NOOP;
 
-    if (block->ptr == NULL) return block_make(block, new_size);
-
-    struct block new_block = {0};
-    block_make(&new_block, new_size);
-    memcpy(new_block.ptr, block->ptr, block->len);
-
-    block_destroy(block);
-    *block = new_block;
-
-    return CODE_OK;
-}
 
 i64 cmd_await(i64 pid) {
-    for (;;) {
+    while (1) {
         i64 wstatus = 0;
         if (syscall_wait4(pid, &wstatus, 0, 0) < 0) {
             print("[ERROR] could not wait on command (pid %d)\n", pid);
@@ -338,14 +327,21 @@ i64 cmd_run(struct shell_command* cmd) {
     }
 
     if (pid == 0) {
+        i64 result = 0;
         struct shell_command cmd_null = {0};
+        char* program_path = NULL;
         cmd_append_array(&cmd_null, cmd->items, cmd->len);
         cmd_append(&cmd_null, NULL);
 
-        i64 result = syscall_execve(cmd_null.items[0], (char **) cmd_null.items, __envp);
+        result = find_executable(cmd_null.items[0], __envp, &program_path);
+        if (result == CODE_ERROR) {
+            print("[ERROR] Could not find the executable `%s`\n", cmd_null.items[0]);
+            /* syscall_exit(2); */
+        }
+        result = syscall_execve(cmd_null.items[0], (char **) cmd_null.items, __envp);
         if (result < 0) {
             print("[ERROR] Could not exec child process for %s: %ld\n", cmd_null.items[0], result);
-            syscall_exit(42);
+            syscall_exit(3);
         }
         UNREACHABLE();
     }
@@ -382,7 +378,7 @@ i64 rebuild_needed(char* path_input, char* path_output) {
 
     return 0;
 }
-void rebuild_thyself(int argc, char** argv, char* path_input) {
+void rebuild_thyself(i32 argc, char** argv, char* path_input) {
     char* path_output = SHIFT(argc, argv);
     i64 ret_code = 0;
     char path_output_old[1024] = {0};
@@ -392,7 +388,8 @@ void rebuild_thyself(int argc, char** argv, char* path_input) {
     if (ret_code < 0) syscall_exit(1); /* error occured */
     if (ret_code == 0) return; /* rebuild is not needed */
 
-    path_output_old[stbsp_snprintf(path_output_old, 1024, "%s.old", path_output)] = 0;
+    i64 written = stbsp_snprintf(path_output_old, 1024, "%s.old", path_output);
+    if (written >= 1024) UNREACHABLE();
     if (syscall_rename(path_output, path_output_old) != 0) {
         print("[ERROR] Could not rename: %s\n", ret_code);
         syscall_exit(1);
@@ -401,7 +398,8 @@ void rebuild_thyself(int argc, char** argv, char* path_input) {
     cmd_append(&cmd, "/bin/gcc");
     cmd_append(&cmd, path_input);
     cmd_append(&cmd, "-o", path_output);
-    cmd_append(&cmd, "-nostdlib", "-masm=intel", "-fno-stack-protector");
+    cmd_append(&cmd, "-nostdlib", "-masm=intel");
+    cmd_append(&cmd, "-fno-stack-protector");
     cmd_append(&cmd, "-Wno-builtin-declaration-mismatch");
     if (!cmd_run(&cmd)) {
         print("[ERROR] Could not rebuild.\n");
@@ -415,10 +413,8 @@ void rebuild_thyself(int argc, char** argv, char* path_input) {
     if (!cmd_run(&cmd)) syscall_exit(2);
     syscall_exit(0);
 }
-int init_ignored_dir(char* path_dir, char* path_ignore, int force) {
+i32 init_ignored_dir(char* path_dir, char* path_ignore) {
     i64 ret_code = 0;
-
-    if (force) syscall_unlink(path_dir);
 
     ret_code = syscall_mkdir(path_dir, 0755);
     if (ret_code < 0) {
@@ -427,7 +423,8 @@ int init_ignored_dir(char* path_dir, char* path_ignore, int force) {
     }
 
     char buf[1024] = {0};
-    buf[stbsp_snprintf(buf, sizeof(buf), "%s%s", path_dir, path_ignore)] = 0;
+    i64 written = stbsp_snprintf(buf, sizeof(buf), "%s%s", path_dir, path_ignore);
+    if (written >= 1024) UNREACHABLE();
     i64 fd = syscall_open(buf, OPEN_FLAG_RDWR|OPEN_FLAG_CREAT|OPEN_FLAG_TRUNC, 0644);
     if (fd < 0) {
         print("[ERROR] Could not open file %s for writing: %ld\n", buf, fd);
@@ -444,7 +441,56 @@ defer:
     if (fd) syscall_close(fd);
     return 1;
 }
+i64 find_executable(char* name, char* envp[], char** result) {
+    char** env = envp;
+    char* path = NULL;
+    char* path_temp = *env;
 
+    for (; path_temp != NULL; path_temp = *env++) {
+        if (path_temp[0] == 'P' && path_temp[1] == 'A' && path_temp[2] == 'T' && path_temp[3] == 'H') {
+            path = path_temp + 5; /* skip `PATH=` */
+            break;
+        }
+    }
+
+    if (path == NULL) path = "/usr/local/bin:/usr/bin:/bin"; /* some default value */
+
+    while (1) {
+        i64 delimiter_index = 0;
+        static char buffer_path[4096] = {0};
+        static char buffer_dirent[4096] = {0};
+        while (path[delimiter_index] != 0) {
+            if (path[delimiter_index] == ':') break;
+            delimiter_index += 1;
+        }
+        memcpy(buffer_path, path, delimiter_index);
+        path += delimiter_index + 1;
+
+        i64 fd = syscall_open(buffer_path, OPEN_FLAG_RDONLY | OPEN_FLAG_DIRECTORY, 0644);
+        if (fd < 0) {
+            print("[ERROR] Could not open directory `%s`: %ld\n", buffer_path, fd);
+            return CODE_ERROR; /* TODO: return or skip? */
+        }
+
+        while (1) {
+            i64 offset = 0;
+            struct directory_entry* dirent = NULL;
+            i64 read_count = syscall_getdents64(fd, (void*)buffer_dirent, sizeof(buffer_dirent));
+
+            if (read_count < 0) {
+                print("[ERROR] Could not syscall getdents64\n");
+                return CODE_ERROR;
+            }
+            if (read_count == 0) break;
+
+            for (offset = 0; offset < read_count;) {
+                dirent = (struct directory_entry*)(buffer_dirent + offset);
+            }
+        }
+    }
+
+    return CODE_OK;
+}
 
 #endif /* STD_LINUX_IMPLEMENTATION_GUARD */
 #endif /* STD_LINUX_IMPLEMENTATION */

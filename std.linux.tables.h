@@ -432,4 +432,20 @@
     X(FIXED,           0x10) /* Interpret addr exactly.  */ \
     X(ANONYMOUS,       0x20) /* Don't use a file.  */
 
+/* from usr/include/linux/mman.h */
+#define MREMAP_FLAGS \
+    X(MAYMOVE,   1) \
+    X(FIXED,     2) \
+    X(DONTUNMAP, 4)
+
+#define DIR_ENTRY_TYPES \
+    X(UNKNOWN,          0x0) \
+    X(NAMED_PIPE,       0x1)   /* FIFO */ \
+    X(CHARACTER_DEVICE, 0x2) \
+    X(DIRECTORY,        0x4) \
+    X(BLOCK_DEVICE,     0x6) \
+    X(REGULAR_FILE,     0x8) \
+    X(SYMBOLIC_LINK,    0xa) \
+    X(SOCKET,           0xc)   /* UNIX domain socket */
+
 #endif /* STD_LINUX_TABLES_H */

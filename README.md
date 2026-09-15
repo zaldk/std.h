@@ -6,6 +6,6 @@ Currently only for x86_64 Linux, with Windows in plans.
 
 bootstrap the builder and run it:
 ```sh
-gcc -nostdlib -fno-stack-protector -masm=intel build.c -o build.exe
+cc -nostdlib -fno-stack-protector -masm=intel build.c -o build.exe
 ./build.exe
 ```

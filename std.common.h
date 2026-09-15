@@ -11,7 +11,7 @@
 #   define NULL ((void*)0)
 #endif
 
-#define UNREACHABLE() do { *(volatile int *)0 = 0; __builtin_unreachable(); } while (0)
+#define UNREACHABLE() __builtin_unreachable()
 #define ASSERT(CONDITION) ((CONDITION) ? (void)0 : UNREACHABLE())
 
 #define MULTILINE_STRING(...) #__VA_ARGS__
@@ -38,6 +38,55 @@
         (xs)->items[(xs)->len++] = (x);                                        \
     } while (0)
 
+typedef signed   char  i8;
+typedef unsigned char  u8;
+typedef signed   short i16;
+typedef unsigned short u16;
+typedef signed   int   i32;
+typedef unsigned int   u32;
+typedef signed   long  i64;
+typedef unsigned long  u64;
+typedef float          f32;
+typedef double         f64;
+
+static const i64 CODE_OK    =  0;
+static const i64 CODE_ERROR = -1;
+static const i64 CODE_NOOP  = CODE_ERROR * 2;
+
+/* HACK: provide some functions from C std so that the compiler does not shit itself */
+void* memset(void* dst, i32  byte, u64 length);
+void* memcpy(void* dst, const void* src, u64 length);
+i32 memcmp(void* a, void* b, u64 length);
+
+void print(const char* format, ...);
+
+
+struct block {
+    void* ptr;
+    i64 cap;
+    i64 len;
+};
+i64 block_make(struct block* mb, i64 size);
+i64 block_destroy(struct block* mb);
+i64 block_resize(struct block* mb, i64 new_size);
+
+
+
+/* adapted from github:tsoding/nob.h */
+char** __envp; /* must pass this to execve; set up in INSERT_ENTRY_POINT */
+struct shell_command {
+    struct block buffer;
+    char** items;
+    i64 len, cap;
+};
+void cmd_append_fn(struct shell_command* cmd, i64 argc, char** argv);
+i64 cmd_await(i64 pid);
+i64 cmd_run(struct shell_command* cmd);
+i64 rebuild_needed(char* path_input, char* path_output);
+void rebuild_thyself(i32 argc, char** argv, char* path_input);
+i32 init_ignored_dir(char* path_dir, char* path_ignore);
+i64 find_executable(char* name, char* envp[], char** result);
+
 #define cmd_append(cmd, ...)                          \
     cmd_append_fn((cmd),                              \
         sizeof((char*[]){__VA_ARGS__})/sizeof(char*), \
@@ -52,74 +101,9 @@
             block_resize(&(cmd)->buffer, sizeof(*(cmd)->items) * (cmd)->cap); \
             (cmd)->items = (cmd)->buffer.ptr;                                 \
         }                                                                     \
-        memcpy((u8*)(cmd)->items+(cmd)->len, (u8*)(xs), (n)*sizeof(*(xs)));   \
+        memcpy((cmd)->items+(cmd)->len, (xs), (n)*sizeof(*(cmd)->items));     \
         (cmd)->len += n;                                                      \
     } while (0)
-
-typedef signed   char  i8;
-typedef unsigned char  u8;
-typedef signed   short i16;
-typedef unsigned short u16;
-typedef signed   int   i32;
-typedef unsigned int   u32;
-typedef signed   long  i64;
-typedef unsigned long  u64;
-typedef float          f32;
-typedef double         f64;
-
-static const i64 CODE_OK    = 0;
-static const i64 CODE_ERROR = 1;
-static const i64 CODE_NOOP  = 2;
-
-/* HACK: provide some functions from C std so that the compiler does not shit itself */
-void* memset(void* dst, i32  byte, u64 length);
-void* memcpy(void* dst, void* src, u64 length);
-
-void print(const char* format, ...);
-
-i64 get_file_size(const char* filename);
-
-static const i64 POOL_DEFAULT_CAPACITY = 4096;
-struct pool {
-    u8*          ptr;
-    struct pool* next;
-    i64          len;
-    i64          cap;
-};
-i64 pool_try_init(struct pool* pool);
-i64 pool_try_destroy(struct pool* pool);
-
-struct string_builder {
-    struct pool pool;
-    i64 len;
-};
-i64 sb_destroy(struct string_builder* builder);
-i64 sb_append(struct string_builder* builder, const char* str, i64 len);
-i64 sb_to_string(struct string_builder* builder, u8* buffer);
-#define SB_APPEND(BUILDER, C_STRING) sb_append((BUILDER), (C_STRING), sizeof(C_STRING)-1)
-
-struct block {
-    void* ptr;
-    i64 len;
-};
-i64 block_make(struct block* mb, i64 size);
-i64 block_destroy(struct block* mb);
-i64 block_resize(struct block* mb, i64 new_size);
-
-struct shell_command {
-    struct block buffer;
-    char** items;
-    i64 len, cap;
-};
-
-/* adapted from github:tsoding/nob.h */
-char** __envp; /* must pass this to execve; set up in INSERT_ENTRY_POINT */
-void cmd_append_fn(struct shell_command* cmd, i64 argc, char** argv);
-i64 cmd_await(i64 pid);
-i64 cmd_run(struct shell_command* cmd);
-i64 rebuild_needed(char* path_input, char* path_output);
-void rebuild_thyself(int argc, char** argv, char* path_input);
-int init_ignored_dir(char* path_dir, char* path_ignore, int force);
 
 
 
@@ -134,16 +118,28 @@ void* memset(void* dst, i32 byte, u64 length) {
     }
     return dst;
 }
-void* memcpy(void* dst, void* src, u64 length) {
+void* memcpy(void* dst, const void* src, u64 length) {
     u64 i;
     for (i = 0; i < length; i++) {
         ((u8*)dst)[i] = ((u8*)src)[i];
     }
     return dst;
 }
+i32 memcmp(void* a, void* b, u64 length) {
+    if (a == NULL || b == NULL || length == 0) return 0;
 
+    i32 i = 0;
+    u8* A = a;
+    u8* B = b;
 
-i64 sb_destroy(struct string_builder* builder) {
+    for (i = 0; i < (i64)length; i++) {
+        if (A[i] > B[i]) return i;
+        if (A[i] < B[i]) return -i;
+    }
+    return 0;
+}
+
+/* i64 sb_destroy(struct string_builder* builder) {
     return pool_try_destroy(&builder->pool);
 }
 i64 sb_append(struct string_builder* SB, const char* str, i64 len) {
@@ -162,7 +158,9 @@ i64 sb_append(struct string_builder* SB, const char* str, i64 len) {
         break;
     }
 
-    if (p == NULL) pool_try_init(p);
+    if (p == NULL) {
+        pool_try_init(p);
+    }
 
     i64 available = p->cap - p->len;
 
@@ -197,7 +195,7 @@ i64 sb_to_string(struct string_builder* builder, u8* buffer) {
     }
 
     return offset;
-}
+} */
 
 
 void cmd_append_fn(struct shell_command* cmd, i64 argc, char** argv) {
