@@ -395,10 +395,24 @@
         X(471, rseq_slice_yield,        RSEQ_SLICE_YIELD        )
 
 /* from /usr/include/bits/fcntl-linux.h  */
-#define OPEN_MODES \
-    X(READONLY,     0) \
-    X(WRITEONLY,    1) \
-    X(READWRITE,    2)
+/* from musl-1.2.6/arch/generic/bits/fcntl.h */
+#define OPEN_FLAGS \
+    X(RDONLY,            00) \
+    X(WRONLY,            01) \
+    X(RDWR,              02) \
+    X(CREAT,           0100) \
+    X(EXCL,            0200) \
+    X(NOCTTY,          0400) \
+    X(TRUNC,          01000) \
+    X(APPEND,         02000) \
+    X(NONBLOCK,       04000) \
+    X(DSYNC,         010000) \
+    X(SYNC,        04010000) \
+    X(RSYNC,       04010000) \
+    X(DIRECTORY,    0200000) \
+    X(NOFOLLOW,     0400000) \
+    X(CLOEXEC,     02000000)
+
 
 
 /* from /usr/include/bits/mman-linux.h */
@@ -408,6 +422,7 @@
     X(WRITE,    2) \
     X(EXECUTE,  4)
 
+/* from /usr/include/bits/mman-linux.h */
 #define MMAP_FLAGS \
     X(FILE,            0x00) /* File-backed pages */ \
     X(SHARED,          0x01) /* Share changes.  */ \

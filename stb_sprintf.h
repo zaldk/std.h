@@ -2,6 +2,7 @@
 MODIFIED:
 - replaced #include stdarg and stdint with what they provided
 - replaced all // comments as / ** /
+- in %s handler: casted `pr` to uint32 (line ~616): `(pr >= 0) ? (stbsp__uint32)pr : ~0u);`
 */
 
 /*  stb_sprintf - v1.10 - public domain snprintf() implementation */
@@ -603,7 +604,7 @@ STBSP__PUBLICDEF int STB_SPRINTF_DECORATE(vsprintfcb)(STBSP_SPRINTFCB *callback,
             s = (char *)"null";
          /*  get the length, limited to desired precision */
          /*  always limit to ~0u chars since our counts are 32b */
-         l = stbsp__strlen_limited(s, (pr >= 0) ? pr : ~0i);
+         l = stbsp__strlen_limited(s, (pr >= 0) ? (stbsp__uint32)pr : ~0u);
          lead[0] = 0;
          tail[0] = 0;
          pr = 0;
