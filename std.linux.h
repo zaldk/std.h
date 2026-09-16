@@ -4,21 +4,22 @@
 #include "std.common.h"
 #include "std.linux.tables.h"
 
-#define INSERT_ENTRY_POINT() __asm__ (MULTILINE_STRING( \
-    .intel_syntax noprefix             \n            \
-    .weak _start                      \n            \
-    _start:                            \n            \
-    \t xor     rbp, rbp                \n            \
-    \t mov     rdi, [rsp]              \n /* argc */ \
-    \t lea     rsi, [rsp + 8]          \n /* argv */ \
-    \t lea     rdx, [rsp + rdi*8 + 16] \n /* envp */ \
-    \t mov     [rip + __envp], rdx     \n            \
-    \t and     rsp, -16                \n            \
-    \t call    main                    \n            \
-    \t mov     rdi, rax                \n            \
-    \t mov     rax, 60                 \n /* exit */ \
-    \t syscall                         \n            \
-));
+#define INSERT_ENTRY_POINT() __asm__ ( \
+    ".intel_syntax noprefix              \n"            \
+    ".weak _start                        \n "           \
+    "_start:                             \n"            \
+    "    xor     rbp, rbp                \n"            \
+    "    mov     rdi, [rsp]              \n" /* argc */ \
+    "    lea     rsi, [rsp + 8]          \n" /* argv */ \
+    "    lea     rdx, [rsp + rdi*8 + 16] \n" /* envp */ \
+    "    mov     [rip + __envp], rdx     \n"            \
+    "    and     rsp, -16                \n"            \
+    "    call    main                    \n"            \
+    "    mov     rdi, rax                \n"            \
+    "    mov     rax, 60                 \n" /* exit */ \
+    "    syscall                         \n"            \
+    ".att_syntax prefix                  \n"            \
+);
 
 
 #define X(NUMBER, _, NAME) static const i64 SYSCALL_##NAME = NUMBER;
@@ -241,10 +242,11 @@ i64 syscall_getdents64(i64 file_descriptor, struct directory_entry* dirent, u64 
 
 
 void print(const char* format, ...) {
+    i64 print_length;
     static char print_buffer[4096];
     va_list va;
     va_start(va, format);
-    i64 print_length = stbsp_vsnprintf(print_buffer, sizeof(print_buffer), format, va);
+    print_length = stbsp_vsnprintf(print_buffer, sizeof(print_buffer), format, va);
     va_end(va);
     syscall_write(1, print_buffer, print_length);
 }
@@ -265,12 +267,13 @@ i64 block_make(struct block* block, i64 requested_size) {
     return CODE_OK;
 }
 i64 block_resize(struct block* block, i64 new_size) {
-    if (block->cap > new_size) return CODE_NOOP;
+    i64 actual_new_size, result;
 
+    if (block->cap > new_size) return CODE_NOOP;
     if (block->ptr == NULL) return block_make(block, new_size);
 
-    i64 actual_new_size = ROUND_UP_4K(new_size);
-    i64 result = syscall_mremap(block->ptr, block->cap, actual_new_size, MREMAP_FLAG_MAYMOVE, NULL);
+    actual_new_size = ROUND_UP_4K(new_size);
+    result = syscall_mremap(block->ptr, block->cap, actual_new_size, MREMAP_FLAG_MAYMOVE, NULL);
     if (result < 0) {
         print("[ERROR] Count not resize: %ld\n", result);
         return CODE_ERROR;
@@ -281,8 +284,9 @@ i64 block_resize(struct block* block, i64 new_size) {
     return CODE_OK;
 }
 i64 block_destroy(struct block* block) {
+    i64 result;
     if (block->ptr == NULL) return CODE_NOOP;
-    i64 result = syscall_munmap(block->ptr, block->cap);
+    result = syscall_munmap(block->ptr, block->cap);
     if (result < 0) return CODE_ERROR;
     return CODE_OK;
 }
@@ -314,13 +318,16 @@ i64 cmd_await(i64 pid) {
 }
 i64 cmd_run(struct shell_command* cmd) {
     i64 i;
+    i64 pid;
+    i64 ret;
+
     print("[DEBUG] Running:");
     for (i = 0; i < cmd->len; i++) {
         print(" %s", cmd->items[i]);
     }
     print("\n");
 
-    i64 pid = syscall_fork();
+    pid = syscall_fork();
     if (pid < 0) {
         print("[ERROR] Could not fork.\n");
         return 0;
@@ -346,7 +353,7 @@ i64 cmd_run(struct shell_command* cmd) {
         UNREACHABLE();
     }
 
-    i64 ret = cmd_await(pid);
+    ret = cmd_await(pid);
     if (!ret) {
         print("[ERROR] Could not await process pid=%d\n", pid);
         return 0;
@@ -359,6 +366,8 @@ i64 cmd_run(struct shell_command* cmd) {
 i64 rebuild_needed(char* path_input, char* path_output) {
     struct stat statbuf = {0};
     i64 ret_code = 0;
+    i64 path_output_time;
+    i64 path_input_time;
 
     if ((ret_code = syscall_stat(path_output, &statbuf)) < 0) {
         /* NOTE: if output does not exist it 100% must be rebuilt */
@@ -366,14 +375,14 @@ i64 rebuild_needed(char* path_input, char* path_output) {
         print("[ERROR] could not stat %s: %ld\n", path_output, ret_code);
         return -1;
     }
-    i64 path_output_time = statbuf.time_modification;
+    path_output_time = statbuf.time_modification;
 
     if ((ret_code = syscall_stat(path_input, &statbuf)) < 0) {
         /* NOTE: non-existing input is an error cause it is needed for building in the first place */
         print("[ERROR] could not stat %s: %ld\n", path_input, ret_code);
         return -1;
     }
-    i64 path_input_time = statbuf.time_modification;
+    path_input_time = statbuf.time_modification;
     if (path_input_time > path_output_time) return 1;
 
     return 0;
@@ -383,12 +392,13 @@ void rebuild_thyself(i32 argc, char** argv, char* path_input) {
     i64 ret_code = 0;
     char path_output_old[1024] = {0};
     struct shell_command cmd = {0};
+    i64 written;
 
     ret_code = rebuild_needed(path_input, path_output);
     if (ret_code < 0) syscall_exit(1); /* error occured */
     if (ret_code == 0) return; /* rebuild is not needed */
 
-    i64 written = stbsp_snprintf(path_output_old, 1024, "%s.old", path_output);
+    written = stbsp_snprintf(path_output_old, 1024, "%s.old", path_output);
     if (written >= 1024) UNREACHABLE();
     if (syscall_rename(path_output, path_output_old) != 0) {
         print("[ERROR] Could not rename: %s\n", ret_code);
@@ -398,7 +408,7 @@ void rebuild_thyself(i32 argc, char** argv, char* path_input) {
     cmd_append(&cmd, "/bin/gcc");
     cmd_append(&cmd, path_input);
     cmd_append(&cmd, "-o", path_output);
-    cmd_append(&cmd, "-nostdlib", "-masm=intel");
+    cmd_append(&cmd, "-nostdlib");
     cmd_append(&cmd, "-fno-stack-protector");
     cmd_append(&cmd, "-Wno-builtin-declaration-mismatch");
     if (!cmd_run(&cmd)) {
@@ -415,6 +425,9 @@ void rebuild_thyself(i32 argc, char** argv, char* path_input) {
 }
 i32 init_ignored_dir(char* path_dir, char* path_ignore) {
     i64 ret_code = 0;
+    char buf[1024] = {0};
+    i64 written;
+    i64 fd;
 
     ret_code = syscall_mkdir(path_dir, 0755);
     if (ret_code < 0) {
@@ -422,18 +435,17 @@ i32 init_ignored_dir(char* path_dir, char* path_ignore) {
         print("[ERROR] could not create directory `%s`: %ld\n", path_dir, ret_code);
     }
 
-    char buf[1024] = {0};
-    i64 written = stbsp_snprintf(buf, sizeof(buf), "%s%s", path_dir, path_ignore);
+    written = stbsp_snprintf(buf, sizeof(buf), "%s%s", path_dir, path_ignore);
     if (written >= 1024) UNREACHABLE();
-    i64 fd = syscall_open(buf, OPEN_FLAG_RDWR|OPEN_FLAG_CREAT|OPEN_FLAG_TRUNC, 0644);
+    fd = syscall_open(buf, OPEN_FLAG_RDWR|OPEN_FLAG_CREAT|OPEN_FLAG_TRUNC, 0644);
     if (fd < 0) {
         print("[ERROR] Could not open file %s for writing: %ld\n", buf, fd);
         goto defer;
     }
 
-    i64 n = syscall_write(fd, "*", 1);
-    if (n < 0) {
-        print("[ERROR] Could not write into file %s: %ld\n", buf, n);
+    written = syscall_write(fd, "*", 1);
+    if (written < 0) {
+        print("[ERROR] Could not write into file %s: %ld\n", buf, written);
         goto defer;
     }
 
@@ -446,6 +458,9 @@ i64 find_executable(char* name, char* envp[], char** result) {
     char* path = NULL;
     char* path_temp = *env;
 
+    (void)name;
+    (void)result;
+
     for (; path_temp != NULL; path_temp = *env++) {
         if (path_temp[0] == 'P' && path_temp[1] == 'A' && path_temp[2] == 'T' && path_temp[3] == 'H') {
             path = path_temp + 5; /* skip `PATH=` */
@@ -455,10 +470,14 @@ i64 find_executable(char* name, char* envp[], char** result) {
 
     if (path == NULL) path = "/usr/local/bin:/usr/bin:/bin"; /* some default value */
 
+    return CODE_OK;
+
     while (1) {
         i64 delimiter_index = 0;
+        i64 fd;
         static char buffer_path[4096] = {0};
         static char buffer_dirent[4096] = {0};
+
         while (path[delimiter_index] != 0) {
             if (path[delimiter_index] == ':') break;
             delimiter_index += 1;
@@ -466,7 +485,7 @@ i64 find_executable(char* name, char* envp[], char** result) {
         memcpy(buffer_path, path, delimiter_index);
         path += delimiter_index + 1;
 
-        i64 fd = syscall_open(buffer_path, OPEN_FLAG_RDONLY | OPEN_FLAG_DIRECTORY, 0644);
+        fd = syscall_open(buffer_path, OPEN_FLAG_RDONLY | OPEN_FLAG_DIRECTORY, 0644);
         if (fd < 0) {
             print("[ERROR] Could not open directory `%s`: %ld\n", buffer_path, fd);
             return CODE_ERROR; /* TODO: return or skip? */
@@ -474,7 +493,7 @@ i64 find_executable(char* name, char* envp[], char** result) {
 
         while (1) {
             i64 offset = 0;
-            struct directory_entry* dirent = NULL;
+            struct directory_entry* dirent;
             i64 read_count = syscall_getdents64(fd, (void*)buffer_dirent, sizeof(buffer_dirent));
 
             if (read_count < 0) {
@@ -485,6 +504,7 @@ i64 find_executable(char* name, char* envp[], char** result) {
 
             for (offset = 0; offset < read_count;) {
                 dirent = (struct directory_entry*)(buffer_dirent + offset);
+                offset += dirent->self_size;
             }
         }
     }

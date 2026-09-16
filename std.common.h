@@ -14,8 +14,6 @@
 #define UNREACHABLE() __builtin_unreachable()
 #define ASSERT(CONDITION) ((CONDITION) ? (void)0 : UNREACHABLE())
 
-#define MULTILINE_STRING(...) #__VA_ARGS__
-
 #define ROUND_UP_4K(X) (((X) + 0xFFF) & ~0xFFF)
 
 #define SHIFT(argc, argv) (--(argc), *(argv)++)
@@ -56,7 +54,7 @@ static const i64 CODE_NOOP  = CODE_ERROR * 2;
 /* HACK: provide some functions from C std so that the compiler does not shit itself */
 void* memset(void* dst, i32  byte, u64 length);
 void* memcpy(void* dst, const void* src, u64 length);
-i32 memcmp(void* a, void* b, u64 length);
+i32 memcmp(const void* a, const void* b, u64 length);
 
 void print(const char* format, ...);
 
@@ -125,12 +123,12 @@ void* memcpy(void* dst, const void* src, u64 length) {
     }
     return dst;
 }
-i32 memcmp(void* a, void* b, u64 length) {
-    if (a == NULL || b == NULL || length == 0) return 0;
-
+i32 memcmp(const void* a, const void* b, u64 length) {
     i32 i = 0;
-    u8* A = a;
-    u8* B = b;
+    u8* A = (u8*)a;
+    u8* B = (u8*)b;
+
+    if (a == NULL || b == NULL || length == 0) return 0;
 
     for (i = 0; i < (i64)length; i++) {
         if (A[i] > B[i]) return i;

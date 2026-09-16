@@ -4,10 +4,14 @@ Diagnostics:
     - builtin-declaration-mismatch
     - macro-redefined
     - unused-includes
+    - overlength-strings
+    - c99-extensions
+    - variadic-macros
 Index:
   StandardLibrary: No
 CompileFlags:
   Add: [
+    -xc,
     -std=c89,
     -pedantic,
     -Wno-empty-translation-unit,
