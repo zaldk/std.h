@@ -16,7 +16,7 @@ i32 main(i32 argc, char* argv[], char* envp[]) {
     #endif
 
     /* file read test */
-    #if 1
+    #if 0
         i64 fd = syscall_open("README.md", OPEN_FLAG_RDONLY, 0644);
         char buf[4096] = {0};
         i64 read_bytes = syscall_read(fd, buf, sizeof(buf));

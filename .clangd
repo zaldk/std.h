@@ -1,7 +1,5 @@
 Diagnostics:
   Suppress:
-    - incompatible-library-redeclaration
-    - builtin-declaration-mismatch
     - macro-redefined
     - unused-includes
     - overlength-strings

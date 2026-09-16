@@ -49,12 +49,14 @@ typedef double         f64;
 
 static const i64 CODE_OK    =  0;
 static const i64 CODE_ERROR = -1;
-static const i64 CODE_NOOP  = CODE_ERROR * 2;
+static const i64 CODE_NOOP  =  2 * CODE_ERROR; /* TODO: remove this shit */
 
 /* HACK: provide some functions from C std so that the compiler does not shit itself */
 void* memset(void* dst, i32  byte, u64 length);
 void* memcpy(void* dst, const void* src, u64 length);
 i32 memcmp(const void* a, const void* b, u64 length);
+
+i64 zstr_length(char* zstr);
 
 void print(const char* format, ...);
 
@@ -83,7 +85,7 @@ i64 cmd_run(struct shell_command* cmd);
 i64 rebuild_needed(char* path_input, char* path_output);
 void rebuild_thyself(i32 argc, char** argv, char* path_input);
 i32 init_ignored_dir(char* path_dir, char* path_ignore);
-i64 find_executable(char* name, char* envp[], char** result);
+i64 find_executable(char* name, char* envp[], char* result_buffer, i64 result_buffer_capacity);
 
 #define cmd_append(cmd, ...)                          \
     cmd_append_fn((cmd),                              \
@@ -128,73 +130,25 @@ i32 memcmp(const void* a, const void* b, u64 length) {
     u8* A = (u8*)a;
     u8* B = (u8*)b;
 
-    if (a == NULL || b == NULL || length == 0) return 0;
+    if (a == NULL || b == NULL || length == 0) return 1;
 
     for (i = 0; i < (i64)length; i++) {
-        if (A[i] > B[i]) return i;
-        if (A[i] < B[i]) return -i;
+        if (A[i] > B[i]) return 1;
+        if (A[i] < B[i]) return -1;
     }
     return 0;
 }
 
-/* i64 sb_destroy(struct string_builder* builder) {
-    return pool_try_destroy(&builder->pool);
+i64 zstr_length(char* zstr) {
+    static const i64 MAX_STRING_LENGTH = 4096;
+    i64 i;
+
+    if (zstr == NULL) return -1;
+    for (i = 0; i < MAX_STRING_LENGTH; i++) {
+        if (zstr[i] == 0) return i;
+    }
+    return MAX_STRING_LENGTH;
 }
-i64 sb_append(struct string_builder* SB, const char* str, i64 len) {
-    pool_try_init(&SB->pool);
-
-    struct pool* p = &SB->pool;
-    for (;;) {
-        if (p->cap - p->len == 0) {
-            p = p->next;
-            if (p == NULL) {
-                break;
-            } else {
-                continue;
-            }
-        }
-        break;
-    }
-
-    if (p == NULL) {
-        pool_try_init(p);
-    }
-
-    i64 available = p->cap - p->len;
-
-    if (available < len) {
-        memcpy(p->ptr + p->len, (u8*)str, available);
-        p->len += available;
-        SB->len += available;
-        struct pool sb_original_pool = SB->pool;
-        SB->pool = *p;
-        i64 result = sb_append(SB, str + available, len - available);
-        SB->pool = sb_original_pool;
-        return result;
-    }
-
-    memcpy(p->ptr + p->len, (u8*)str, len);
-    p->len += len;
-    SB->len += len;
-
-    return CODE_OK;
-}
-i64 sb_to_string(struct string_builder* builder, u8* buffer) {
-    if (buffer == NULL) return builder->len;
-
-    i64 offset = 0;
-    struct pool* p = &builder->pool;
-    for (;;) {
-        if (p == NULL) break;
-        memcpy(buffer + offset, p->ptr, p->len);
-        offset += p->len;
-        if (p->len < p->cap) break;
-        p = p->next;
-    }
-
-    return offset;
-} */
-
 
 void cmd_append_fn(struct shell_command* cmd, i64 argc, char** argv) {
     i64 i = 0;

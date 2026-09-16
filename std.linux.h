@@ -28,6 +28,11 @@
 i64 syscall_generic(u64 code, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5, u64 arg6);
 
 
+#define X(NAME, VALUE) static const i64 ERRNO_##NAME = VALUE;
+    ERRNO_VALUES
+#undef X
+
+
 void syscall_exit(i64 exit_code);
 
 
@@ -120,8 +125,8 @@ i64 syscall_unlink(char* path);
 /* from linux-7.2/tools/include/nolibc/types.h */
 struct directory_entry {
 	u64            inode;
-	i64            offset;   /* should not use */
-	unsigned short self_size; /* no idea how to use */
+	i64            _weird_value; /* should not use */
+	unsigned short self_size;    /* no idea how to use */
 	unsigned char  type;
 	char           name[];
 };
@@ -330,25 +335,29 @@ i64 cmd_run(struct shell_command* cmd) {
     pid = syscall_fork();
     if (pid < 0) {
         print("[ERROR] Could not fork.\n");
-        return 0;
+        return CODE_OK;
     }
 
     if (pid == 0) {
         i64 result = 0;
+        char* program_path;
         struct shell_command cmd_null = {0};
-        char* program_path = NULL;
+        char program_path_buffer[4096] = {0};
         cmd_append_array(&cmd_null, cmd->items, cmd->len);
         cmd_append(&cmd_null, NULL);
 
-        result = find_executable(cmd_null.items[0], __envp, &program_path);
+        program_path = cmd_null.items[0];
+        result = find_executable(cmd_null.items[0], __envp, program_path_buffer, sizeof(program_path_buffer));
         if (result == CODE_ERROR) {
             print("[ERROR] Could not find the executable `%s`\n", cmd_null.items[0]);
-            /* syscall_exit(2); */
+            return CODE_ERROR;
+        } else if (result == CODE_OK) {
+            program_path = program_path_buffer;
         }
-        result = syscall_execve(cmd_null.items[0], (char **) cmd_null.items, __envp);
+        result = syscall_execve(program_path, (char **) cmd_null.items, __envp);
         if (result < 0) {
             print("[ERROR] Could not exec child process for %s: %ld\n", cmd_null.items[0], result);
-            syscall_exit(3);
+            return CODE_ERROR;
         }
         UNREACHABLE();
     }
@@ -356,12 +365,12 @@ i64 cmd_run(struct shell_command* cmd) {
     ret = cmd_await(pid);
     if (!ret) {
         print("[ERROR] Could not await process pid=%d\n", pid);
-        return 0;
+        return CODE_OK;
     }
 
     cmd->len = 0;
 
-    return 1;
+    return CODE_ERROR;
 }
 i64 rebuild_needed(char* path_input, char* path_output) {
     struct stat statbuf = {0};
@@ -371,7 +380,7 @@ i64 rebuild_needed(char* path_input, char* path_output) {
 
     if ((ret_code = syscall_stat(path_output, &statbuf)) < 0) {
         /* NOTE: if output does not exist it 100% must be rebuilt */
-        if (ret_code == -2) return 1; /* ENOENT = 2 */
+        if (ret_code == -ERRNO_ENOENT) return 1;
         print("[ERROR] could not stat %s: %ld\n", path_output, ret_code);
         return -1;
     }
@@ -405,12 +414,10 @@ void rebuild_thyself(i32 argc, char** argv, char* path_input) {
         syscall_exit(1);
     }
 
-    cmd_append(&cmd, "/bin/gcc");
-    cmd_append(&cmd, path_input);
-    cmd_append(&cmd, "-o", path_output);
+    cmd_append(&cmd, "gcc");
+    cmd_append(&cmd, path_input, "-o", path_output);
     cmd_append(&cmd, "-nostdlib");
-    cmd_append(&cmd, "-fno-stack-protector");
-    cmd_append(&cmd, "-Wno-builtin-declaration-mismatch");
+    cmd_append(&cmd, "-fno-stack-protector"); /* TODO: figure out a way to remove this flag */
     if (!cmd_run(&cmd)) {
         print("[ERROR] Could not rebuild.\n");
         syscall_rename(path_output_old, path_output);
@@ -431,7 +438,7 @@ i32 init_ignored_dir(char* path_dir, char* path_ignore) {
 
     ret_code = syscall_mkdir(path_dir, 0755);
     if (ret_code < 0) {
-        if (ret_code == -17) return 1; /* EEXIST = 17 */
+        if (ret_code == -ERRNO_EEXIST) return 1;
         print("[ERROR] could not create directory `%s`: %ld\n", path_dir, ret_code);
     }
 
@@ -453,13 +460,19 @@ defer:
     if (fd) syscall_close(fd);
     return 1;
 }
-i64 find_executable(char* name, char* envp[], char** result) {
+i64 find_executable(char* name, char* envp[], char* result_buffer, i64 result_buffer_capacity) {
     char** env = envp;
     char* path = NULL;
     char* path_temp = *env;
+    i64 name_length = 0;
+    i64 found = 0;
+    i64 return_code = 0;
+    i64 i;
 
-    (void)name;
-    (void)result;
+    name_length = zstr_length(name);
+    for (i = 0; i < name_length; i++) {
+        if (name[i] == '/') return CODE_NOOP;
+    }
 
     for (; path_temp != NULL; path_temp = *env++) {
         if (path_temp[0] == 'P' && path_temp[1] == 'A' && path_temp[2] == 'T' && path_temp[3] == 'H') {
@@ -470,30 +483,31 @@ i64 find_executable(char* name, char* envp[], char** result) {
 
     if (path == NULL) path = "/usr/local/bin:/usr/bin:/bin"; /* some default value */
 
-    return CODE_OK;
-
     while (1) {
         i64 delimiter_index = 0;
-        i64 fd;
+        i64 fd = 0;
         static char buffer_path[4096] = {0};
+        i64 buffer_path_len = 0;
         static char buffer_dirent[4096] = {0};
 
         while (path[delimiter_index] != 0) {
             if (path[delimiter_index] == ':') break;
             delimiter_index += 1;
         }
+        if (path[delimiter_index] == 0) break;
         memcpy(buffer_path, path, delimiter_index);
+        buffer_path_len = delimiter_index;
+        buffer_path[buffer_path_len] = 0;
         path += delimiter_index + 1;
 
         fd = syscall_open(buffer_path, OPEN_FLAG_RDONLY | OPEN_FLAG_DIRECTORY, 0644);
         if (fd < 0) {
             print("[ERROR] Could not open directory `%s`: %ld\n", buffer_path, fd);
-            return CODE_ERROR; /* TODO: return or skip? */
+            return CODE_ERROR; /* TODO: maybe skip? */
         }
 
         while (1) {
             i64 offset = 0;
-            struct directory_entry* dirent;
             i64 read_count = syscall_getdents64(fd, (void*)buffer_dirent, sizeof(buffer_dirent));
 
             if (read_count < 0) {
@@ -503,13 +517,58 @@ i64 find_executable(char* name, char* envp[], char** result) {
             if (read_count == 0) break;
 
             for (offset = 0; offset < read_count;) {
+                struct directory_entry* dirent;
+                i64 dirent_name_len = 0;
+
                 dirent = (struct directory_entry*)(buffer_dirent + offset);
                 offset += dirent->self_size;
+
+                if (
+                    dirent->type != ENTRY_TYPE_REGULAR_FILE &&
+                    dirent->type != ENTRY_TYPE_SYMBOLIC_LINK
+                ) continue;
+
+                dirent_name_len = zstr_length(dirent->name);
+                if (
+                    memcmp(name, dirent->name, name_length) == 0 &&
+                    dirent_name_len == name_length
+                ) {
+                    i64 written_length = 0;
+                    found = 1;
+                    written_length = stbsp_snprintf(
+                        buffer_path+buffer_path_len,
+                        sizeof(buffer_path)-buffer_path_len,
+                        "/%s", dirent->name
+                    );
+                    if (written_length-1 != dirent_name_len) {
+                        print("[WARN] print length mismatch: %ld vs %ld\n", written_length, dirent_name_len);
+                        return CODE_ERROR; /* TODO: overreaction? */
+                    }
+                    buffer_path_len += written_length;
+                    break;
+                }
             }
+
+            if (found == 1) break;
+        }
+
+        return_code = syscall_close(fd);
+        if (return_code < 0) {
+            print("[ERROR] Could not close file: %ld\n", return_code);
+            return CODE_ERROR; /* TODO: overreaction? */
+        }
+
+        if (found) {
+            if (result_buffer_capacity < buffer_path_len) {
+                print("[ERROR] Given buffer is too short: need %ld - was given %ld", buffer_path_len, result_buffer_capacity);
+                return CODE_ERROR;
+            }
+            memcpy(result_buffer, buffer_path, buffer_path_len);
+            return CODE_OK;
         }
     }
 
-    return CODE_OK;
+    return CODE_ERROR;
 }
 
 #endif /* STD_LINUX_IMPLEMENTATION_GUARD */

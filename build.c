@@ -11,11 +11,11 @@ i32 main(i32 argc, char* argv[], char* envp[]) {
     init_ignored_dir(BUILD_DIR, ".gitignore");
     (void)envp;
 
-    cmd_append(&CMD, "/usr/bin/gcc");
+    cmd_append(&CMD, "gcc");
     cmd_append(&CMD, "test_usage.c", "-o", BUILD_DIR"test_usage.exe");
-    cmd_append(&CMD, "-nostdlib", "-fno-stack-protector");
-    cmd_append(&CMD, "-std=c89", "-no-pie", "-static", "-ggdb");
-    cmd_append(&CMD, "-Wall", "-Wextra", "-Wno-builtin-declaration-mismatch");
+    cmd_append(&CMD, "-nostdlib", "-fno-stack-protector");       /* mandatory */
+    cmd_append(&CMD, "-std=c89", "-no-pie", "-static", "-ggdb"); /* optional  */
+    cmd_append(&CMD, "-Wall", "-Wextra");
     if (!cmd_run(&CMD)) syscall_exit(1);
 
     cmd_append(&CMD, BUILD_DIR"test_usage.exe");
