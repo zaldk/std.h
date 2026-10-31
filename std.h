@@ -11,4 +11,4 @@
 #endif
 #include "std.linux.h"
 
-#endif /* STD_H */
+#endif // STD_H

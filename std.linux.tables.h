@@ -1,12 +1,9 @@
 #ifndef STD_LINUX_TABLES_H
 #define STD_LINUX_TABLES_H
-/*
-    taken from linux-7.2/arch/x86/entry/syscalls/syscall_64.tbl
-    * removed the 'x32' entries
-    * changed abi '64' to 'x64'
-    * changed format to X-macro (https://en.wikipedia.org/wiki/X_macro)
-    The format is: <syscall number> <name> <name but uppercase>
-*/
+// from linux-7.2/arch/x86/entry/syscalls/syscall_64.tbl
+// the 'x32' entries are removed and the abi '64' is now 'x64'
+// the format is: <syscall number> <name> <name in uppercase>
+// a comment inside a macro must be a block comment, a `//` would eat the `\`
 #define SYSCALL_TABLE \
         X(0,   read,                    READ                    ) \
         X(1,   write,                   WRITE                   ) \
@@ -394,8 +391,196 @@
         X(470, listns,                  LISTNS                  ) \
         X(471, rseq_slice_yield,        RSEQ_SLICE_YIELD        )
 
-/* from /usr/include/bits/fcntl-linux.h  */
-/* from musl-1.2.6/arch/generic/bits/fcntl.h */
+// from linux-7.2/include/uapi/asm-generic/errno.h
+#define ERRNO_TABLE \
+    X(EPERM,           1,   "Operation not permitted") \
+    X(ENOENT,          2,   "No such file or directory") \
+    X(ESRCH,           3,   "No such process") \
+    X(EINTR,           4,   "Interrupted system call") \
+    X(EIO,             5,   "I/O error") \
+    X(ENXIO,           6,   "No such device or address") \
+    X(E2BIG,           7,   "Argument list too long") \
+    X(ENOEXEC,         8,   "Exec format error") \
+    X(EBADF,           9,   "Bad file number") \
+    X(ECHILD,          10,  "No child processes") \
+    X(EAGAIN,          11,  "Try again") \
+    X(ENOMEM,          12,  "Out of memory") \
+    X(EACCES,          13,  "Permission denied") \
+    X(EFAULT,          14,  "Bad address") \
+    X(ENOTBLK,         15,  "Block device required") \
+    X(EBUSY,           16,  "Device or resource busy") \
+    X(EEXIST,          17,  "File exists") \
+    X(EXDEV,           18,  "Cross-device link") \
+    X(ENODEV,          19,  "No such device") \
+    X(ENOTDIR,         20,  "Not a directory") \
+    X(EISDIR,          21,  "Is a directory") \
+    X(EINVAL,          22,  "Invalid argument") \
+    X(ENFILE,          23,  "File table overflow") \
+    X(EMFILE,          24,  "Too many open files") \
+    X(ENOTTY,          25,  "Not a typewriter") \
+    X(ETXTBSY,         26,  "Text file busy") \
+    X(EFBIG,           27,  "File too large") \
+    X(ENOSPC,          28,  "No space left on device") \
+    X(ESPIPE,          29,  "Illegal seek") \
+    X(EROFS,           30,  "Read-only file system") \
+    X(EMLINK,          31,  "Too many links") \
+    X(EPIPE,           32,  "Broken pipe") \
+    X(EDOM,            33,  "Math argument out of domain of func") \
+    X(ERANGE,          34,  "Math result not representable") \
+    X(EDEADLK,         35,  "Resource deadlock would occur") \
+    X(ENAMETOOLONG,    36,  "File name too long") \
+    X(ENOLCK,          37,  "No record locks available") \
+    X(ENOSYS,          38,  "Invalid system call number") \
+    X(ENOTEMPTY,       39,  "Directory not empty") \
+    X(ELOOP,           40,  "Too many symbolic links encountered") \
+    /* X(EWOULDBLOCK,     11,  "Operation would block") */ \
+    X(ENOMSG,          42,  "No message of desired type") \
+    X(EIDRM,           43,  "Identifier removed") \
+    X(ECHRNG,          44,  "Channel number out of range") \
+    X(EL2NSYNC,        45,  "Level 2 not synchronized") \
+    X(EL3HLT,          46,  "Level 3 halted") \
+    X(EL3RST,          47,  "Level 3 reset") \
+    X(ELNRNG,          48,  "Link number out of range") \
+    X(EUNATCH,         49,  "Protocol driver not attached") \
+    X(ENOCSI,          50,  "No CSI structure available") \
+    X(EL2HLT,          51,  "Level 2 halted") \
+    X(EBADE,           52,  "Invalid exchange") \
+    X(EBADR,           53,  "Invalid request descriptor") \
+    X(EXFULL,          54,  "Exchange full") \
+    X(ENOANO,          55,  "No anode") \
+    X(EBADRQC,         56,  "Invalid request code") \
+    X(EBADSLT,         57,  "Invalid slot") \
+    /* X(EDEADLOCK,       35,  "Deadlock") */ \
+    X(EBFONT,          59,  "Bad font file format") \
+    X(ENOSTR,          60,  "Device not a stream") \
+    X(ENODATA,         61,  "No data available") \
+    X(ETIME,           62,  "Timer expired") \
+    X(ENOSR,           63,  "Out of streams resources") \
+    X(ENONET,          64,  "Machine is not on the network") \
+    X(ENOPKG,          65,  "Package not installed") \
+    X(EREMOTE,         66,  "Object is remote") \
+    X(ENOLINK,         67,  "Link has been severed") \
+    X(EADV,            68,  "Advertise error") \
+    X(ESRMNT,          69,  "Srmount error") \
+    X(ECOMM,           70,  "Communication error on send") \
+    X(EPROTO,          71,  "Protocol error") \
+    X(EMULTIHOP,       72,  "Multihop attempted") \
+    X(EDOTDOT,         73,  "RFS specific error") \
+    X(EBADMSG,         74,  "Not a data message") \
+    /* X(EFSBADCRC,       74,  "Bad CRC detected") */ \
+    X(EOVERFLOW,       75,  "Value too large for defined data type") \
+    X(ENOTUNIQ,        76,  "Name not unique on network") \
+    X(EBADFD,          77,  "File descriptor in bad state") \
+    X(EREMCHG,         78,  "Remote address changed") \
+    X(ELIBACC,         79,  "Can not access a needed shared library") \
+    X(ELIBBAD,         80,  "Accessing a corrupted shared library") \
+    X(ELIBSCN,         81,  ".lib section in a.out corrupted") \
+    X(ELIBMAX,         82,  "Attempting to link in too many shared libraries") \
+    X(ELIBEXEC,        83,  "Cannot exec a shared library directly") \
+    X(EILSEQ,          84,  "Illegal byte sequence") \
+    X(ERESTART,        85,  "Interrupted system call should be restarted") \
+    X(ESTRPIPE,        86,  "Streams pipe error") \
+    X(EUSERS,          87,  "Too many users") \
+    X(ENOTSOCK,        88,  "Socket operation on non-socket") \
+    X(EDESTADDRREQ,    89,  "Destination address required") \
+    X(EMSGSIZE,        90,  "Message too long") \
+    X(EPROTOTYPE,      91,  "Protocol wrong type for socket") \
+    X(ENOPROTOOPT,     92,  "Protocol not available") \
+    X(EPROTONOSUPPORT, 93,  "Protocol not supported") \
+    X(ESOCKTNOSUPPORT, 94,  "Socket type not supported") \
+    X(EOPNOTSUPP,      95,  "Operation not supported on transport endpoint") \
+    X(EPFNOSUPPORT,    96,  "Protocol family not supported") \
+    X(EAFNOSUPPORT,    97,  "Address family not supported by protocol") \
+    X(EADDRINUSE,      98,  "Address already in use") \
+    X(EADDRNOTAVAIL,   99,  "Cannot assign requested address") \
+    X(ENETDOWN,        100, "Network is down") \
+    X(ENETUNREACH,     101, "Network is unreachable") \
+    X(ENETRESET,       102, "Network dropped connection because of reset") \
+    X(ECONNABORTED,    103, "Software caused connection abort") \
+    X(ECONNRESET,      104, "Connection reset by peer") \
+    X(ENOBUFS,         105, "No buffer space available") \
+    X(EISCONN,         106, "Transport endpoint is already connected") \
+    X(ENOTCONN,        107, "Transport endpoint is not connected") \
+    X(ESHUTDOWN,       108, "Cannot send after transport endpoint shutdown") \
+    X(ETOOMANYREFS,    109, "Too many references: cannot splice") \
+    X(ETIMEDOUT,       110, "Connection timed out") \
+    X(ECONNREFUSED,    111, "Connection refused") \
+    X(EHOSTDOWN,       112, "Host is down") \
+    X(EHOSTUNREACH,    113, "No route to host") \
+    X(EALREADY,        114, "Operation already in progress") \
+    X(EINPROGRESS,     115, "Operation now in progress") \
+    X(ESTALE,          116, "Stale file handle") \
+    X(EUCLEAN,         117, "Structure needs cleaning") \
+    /* X(EFSCORRUPTED,    117, "Filesystem is corrupted") */ \
+    X(ENOTNAM,         118, "Not a XENIX named type file") \
+    X(ENAVAIL,         119, "No XENIX semaphores available") \
+    X(EISNAM,          120, "Is a named type file") \
+    X(EREMOTEIO,       121, "Remote I/O error") \
+    X(EDQUOT,          122, "Quota exceeded") \
+    X(ENOMEDIUM,       123, "No medium found") \
+    X(EMEDIUMTYPE,     124, "Wrong medium type") \
+    X(ECANCELED,       125, "Operation Canceled") \
+    X(ENOKEY,          126, "Required key not available") \
+    X(EKEYEXPIRED,     127, "Key has expired") \
+    X(EKEYREVOKED,     128, "Key has been revoked") \
+    X(EKEYREJECTED,    129, "Key was rejected by service") \
+    X(EOWNERDEAD,      130, "Owner died") \
+    X(ENOTRECOVERABLE, 131, "State not recoverable") \
+    X(ERFKILL,         132, "Operation not possible due to RF-kill") \
+    X(EHWPOISON,       133, "Memory page has hardware error") \
+    X(EFTYPE,          134, "Wrong file type for the intended operation")
+
+#define SIGNAL_CODES \
+    X(HUP,    1) \
+    X(INT,    2) \
+    X(QUIT,   3) \
+    X(ILL,    4) \
+    X(TRAP,   5) \
+    X(ABRT,   6) \
+    X(IOT,    6) \
+    X(BUS,    7) \
+    X(FPE,    8) \
+    X(KILL,   9) \
+    X(USR1,   10) \
+    X(SEGV,   11) \
+    X(USR2,   12) \
+    X(PIPE,   13) \
+    X(ALRM,   14) \
+    X(TERM,   15) \
+    X(STKFLT, 16) \
+    X(CHLD,   17) \
+    X(CONT,   18) \
+    X(STOP,   19) \
+    X(TSTP,   20) \
+    X(TTIN,   21) \
+    X(TTOU,   22) \
+    X(URG,    23) \
+    X(XCPU,   24) \
+    X(XFSZ,   25) \
+    X(VTALRM, 26) \
+    X(PROF,   27) \
+    X(WINCH,  28) \
+    X(IO,     29) \
+    X(PWR,    30) \
+    X(SYS,    31)
+
+
+#define CLOCK_TYPES \
+    X(REALTIME,           0) \
+    X(MONOTONIC,          1) \
+    X(PROCESS_CPUTIME_ID, 2) \
+    X(THREAD_CPUTIME_ID,  3) \
+    X(MONOTONIC_RAW,      4) \
+    X(REALTIME_COARSE,    5) \
+    X(MONOTONIC_COARSE,   6) \
+    X(BOOTTIME,           7) \
+    X(REALTIME_ALARM,     8) \
+    X(BOOTTIME_ALARM,     9)
+
+
+
+// from /usr/include/bits/fcntl-linux.h
+// from musl-1.2.6/arch/generic/bits/fcntl.h
 #define OPEN_FLAGS \
     X(RDONLY,            00) \
     X(WRONLY,            01) \
@@ -415,14 +600,14 @@
 
 
 
-/* from /usr/include/bits/mman-linux.h */
+// from /usr/include/bits/mman-linux.h
 #define MMAP_PROTECTIONS \
     X(NONE,     0) \
     X(READ,     1) \
     X(WRITE,    2) \
     X(EXECUTE,  4)
 
-/* from /usr/include/bits/mman-linux.h */
+// from /usr/include/bits/mman-linux.h
 #define MMAP_FLAGS \
     X(FILE,            0x00) /* File-backed pages */ \
     X(SHARED,          0x01) /* Share changes.  */ \
@@ -432,7 +617,37 @@
     X(FIXED,           0x10) /* Interpret addr exactly.  */ \
     X(ANONYMOUS,       0x20) /* Don't use a file.  */
 
-/* from usr/include/linux/mman.h */
+// from /usr/include/bits/mman-linux.h
+#define MADVISE_FLAGS \
+    X(NORMAL,          0)   /* No further special treatment.  */ \
+    X(RANDOM,          1)   /* Expect random page references.  */ \
+    X(SEQUENTIAL,      2)   /* Expect sequential page references.  */ \
+    X(WILLNEED,        3)   /* Will need these pages.  */ \
+    X(DONTNEED,        4)   /* Don't need these pages.  */ \
+    X(FREE,            8)   /* Free pages only if memory pressure.  */ \
+    X(REMOVE,          9)   /* Remove these pages and resources.  */ \
+    X(DONTFORK,        10)  /* Do not inherit across fork.  */ \
+    X(DOFORK,          11)  /* Do inherit across fork.  */ \
+    X(MERGEABLE,       12)  /* KSM may merge identical pages.  */ \
+    X(UNMERGEABLE,     13)  /* KSM may not merge identical pages.  */ \
+    X(HUGEPAGE,        14)  /* Worth backing with hugepages.  */ \
+    X(NOHUGEPAGE,      15)  /* Not worth backing with hugepages.  */ \
+    X(DONTDUMP,        16)  /* Explicitly exclude from the core dump, overrides the coredump filter bits.  */ \
+    X(DODUMP,          17)  /* Clear the MADV_DONTDUMP flag.  */ \
+    X(WIPEONFORK,      18)  /* Zero memory on fork, child only.  */ \
+    X(KEEPONFORK,      19)  /* Undo MADV_WIPEONFORK.  */ \
+    X(COLD,            20)  /* Deactivate these pages.  */ \
+    X(PAGEOUT,         21)  /* Reclaim these pages.  */ \
+    X(POPULATE_READ,   22)  /* Populate (prefault) page tables readable.  */ \
+    X(POPULATE_WRITE,  23)  /* Populate (prefault) page tables writable.  */ \
+    X(DONTNEED_LOCKED, 24)  /* Like MADV_DONTNEED, but drop locked pages too.  */ \
+    X(COLLAPSE,        25)  /* Synchronous hugepage collapse.  */ \
+    X(HWPOISON,        100) /* Poison a page for testing.  */ \
+    X(GUARD_INSTALL,   102) /* Fatal signal on access to range */ \
+    X(GUARD_REMOVE,    103) /* Unguard range */
+
+
+// from usr/include/linux/mman.h
 #define MREMAP_FLAGS \
     X(MAYMOVE,   1) \
     X(FIXED,     2) \
@@ -448,142 +663,4 @@
     X(SYMBOLIC_LINK,    0xa) \
     X(SOCKET,           0xc)   /* UNIX domain socket */
 
-/* from musl-1.2.6/arch/generic/bits/errno.h */
-#define ERRNO_VALUES \
-    X(EPERM,            1) \
-    X(ENOENT,           2) \
-    X(ESRCH,            3) \
-    X(EINTR,            4) \
-    X(EIO,              5) \
-    X(ENXIO,            6) \
-    X(E2BIG,            7) \
-    X(ENOEXEC,          8) \
-    X(EBADF,            9) \
-    X(ECHILD,          10) \
-    X(EAGAIN,          11) \
-    X(ENOMEM,          12) \
-    X(EACCES,          13) \
-    X(EFAULT,          14) \
-    X(ENOTBLK,         15) \
-    X(EBUSY,           16) \
-    X(EEXIST,          17) \
-    X(EXDEV,           18) \
-    X(ENODEV,          19) \
-    X(ENOTDIR,         20) \
-    X(EISDIR,          21) \
-    X(EINVAL,          22) \
-    X(ENFILE,          23) \
-    X(EMFILE,          24) \
-    X(ENOTTY,          25) \
-    X(ETXTBSY,         26) \
-    X(EFBIG,           27) \
-    X(ENOSPC,          28) \
-    X(ESPIPE,          29) \
-    X(EROFS,           30) \
-    X(EMLINK,          31) \
-    X(EPIPE,           32) \
-    X(EDOM,            33) \
-    X(ERANGE,          34) \
-    X(EDEADLK,         35) \
-    X(ENAMETOOLONG,    36) \
-    X(ENOLCK,          37) \
-    X(ENOSYS,          38) \
-    X(ENOTEMPTY,       39) \
-    X(ELOOP,           40) \
-    X(EWOULDBLOCK,     11) \
-    X(ENOMSG,          42) \
-    X(EIDRM,           43) \
-    X(ECHRNG,          44) \
-    X(EL2NSYNC,        45) \
-    X(EL3HLT,          46) \
-    X(EL3RST,          47) \
-    X(ELNRNG,          48) \
-    X(EUNATCH,         49) \
-    X(ENOCSI,          50) \
-    X(EL2HLT,          51) \
-    X(EBADE,           52) \
-    X(EBADR,           53) \
-    X(EXFULL,          54) \
-    X(ENOANO,          55) \
-    X(EBADRQC,         56) \
-    X(EBADSLT,         57) \
-    X(EDEADLOCK,       35) \
-    X(EBFONT,          59) \
-    X(ENOSTR,          60) \
-    X(ENODATA,         61) \
-    X(ETIME,           62) \
-    X(ENOSR,           63) \
-    X(ENONET,          64) \
-    X(ENOPKG,          65) \
-    X(EREMOTE,         66) \
-    X(ENOLINK,         67) \
-    X(EADV,            68) \
-    X(ESRMNT,          69) \
-    X(ECOMM,           70) \
-    X(EPROTO,          71) \
-    X(EMULTIHOP,       72) \
-    X(EDOTDOT,         73) \
-    X(EBADMSG,         74) \
-    X(EOVERFLOW,       75) \
-    X(ENOTUNIQ,        76) \
-    X(EBADFD,          77) \
-    X(EREMCHG,         78) \
-    X(ELIBACC,         79) \
-    X(ELIBBAD,         80) \
-    X(ELIBSCN,         81) \
-    X(ELIBMAX,         82) \
-    X(ELIBEXEC,        83) \
-    X(EILSEQ,          84) \
-    X(ERESTART,        85) \
-    X(ESTRPIPE,        86) \
-    X(EUSERS,          87) \
-    X(ENOTSOCK,        88) \
-    X(EDESTADDRREQ,    89) \
-    X(EMSGSIZE,        90) \
-    X(EPROTOTYPE,      91) \
-    X(ENOPROTOOPT,     92) \
-    X(EPROTONOSUPPORT, 93) \
-    X(ESOCKTNOSUPPORT, 94) \
-    X(EOPNOTSUPP,      95) \
-    X(ENOTSUP,         95) \
-    X(EPFNOSUPPORT,    96) \
-    X(EAFNOSUPPORT,    97) \
-    X(EADDRINUSE,      98) \
-    X(EADDRNOTAVAIL,   99) \
-    X(ENETDOWN,        100) \
-    X(ENETUNREACH,     101) \
-    X(ENETRESET,       102) \
-    X(ECONNABORTED,    103) \
-    X(ECONNRESET,      104) \
-    X(ENOBUFS,         105) \
-    X(EISCONN,         106) \
-    X(ENOTCONN,        107) \
-    X(ESHUTDOWN,       108) \
-    X(ETOOMANYREFS,    109) \
-    X(ETIMEDOUT,       110) \
-    X(ECONNREFUSED,    111) \
-    X(EHOSTDOWN,       112) \
-    X(EHOSTUNREACH,    113) \
-    X(EALREADY,        114) \
-    X(EINPROGRESS,     115) \
-    X(ESTALE,          116) \
-    X(EUCLEAN,         117) \
-    X(ENOTNAM,         118) \
-    X(ENAVAIL,         119) \
-    X(EISNAM,          120) \
-    X(EREMOTEIO,       121) \
-    X(EDQUOT,          122) \
-    X(ENOMEDIUM,       123) \
-    X(EMEDIUMTYPE,     124) \
-    X(ECANCELED,       125) \
-    X(ENOKEY,          126) \
-    X(EKEYEXPIRED,     127) \
-    X(EKEYREVOKED,     128) \
-    X(EKEYREJECTED,    129) \
-    X(EOWNERDEAD,      130) \
-    X(ENOTRECOVERABLE, 131) \
-    X(ERFKILL,         132) \
-    X(EHWPOISON,       133)
-
-
-#endif /* STD_LINUX_TABLES_H */
+#endif // STD_LINUX_TABLES_H

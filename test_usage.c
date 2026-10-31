@@ -1,7 +1,7 @@
 #define STD_IMPLEMENTATION
 #include "std.h"
 
-INSERT_ENTRY_POINT()
+// INSERT_ENTRY_POINT()
 
 i32 main(i32 argc, char* argv[], char* envp[]) {
     (void)argc;
@@ -26,10 +26,10 @@ i32 main(i32 argc, char* argv[], char* envp[]) {
     #endif
 
     /* mmap test */
-    #if 0
-        char* buffer = NULL;
+    #if 1
+        char* buffer = NIL;
         i64 buffer_size = 4096;
-        buffer = (char*)syscall_mmap(NULL, buffer_size, MMAP_PROT_READ | MMAP_PROT_WRITE, MMAP_FLAG_ANONYMOUS | MMAP_FLAG_PRIVATE, -1, 0);
+        buffer = (char*)syscall_mmap(NIL, buffer_size, MMAP_PROT_READ | MMAP_PROT_WRITE, MMAP_FLAG_ANONYMOUS | MMAP_FLAG_PRIVATE, -1, 0);
         if ((i64)buffer == -1) {
             print("[ERROR] MMAP failed\n");
             UNREACHABLE();
@@ -52,7 +52,7 @@ i32 main(i32 argc, char* argv[], char* envp[]) {
         }
         i = 0;
         print("\nEnvironment variables:\n");
-        for (i = 0; envp[i] != NULL; i++) {
+        for (i = 0; envp[i] != NIL; i++) {
             print("envp[%d] = %s\n", i, envp[i]);
         }
     #endif
