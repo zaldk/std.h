@@ -187,6 +187,7 @@ i32 memcmp(const void* a, const void* b, u64 length) {
 }
 
 static inline i64 __time_profile_init(void) {
+    __TIME_PROFILE_LATCH = 0; // to silence the "unused" warning
     i64 ret = 0;
     struct time_value tv = {0};
     TRY(get_clock_time(&tv), "Could not get time (_time_profile_init)", ret, -1);

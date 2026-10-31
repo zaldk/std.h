@@ -281,9 +281,10 @@ i64 syscall_getdents64(i64 file_descriptor, struct directory_entry* dirent, u64 
 }
 
 
+__attribute__((noreturn))
 void abort(void) {
     syscall_kill(syscall_getpid(), SIGNAL_ABRT);
-    UNREACHABLE();
+    syscall_exit(69);
 }
 
 
