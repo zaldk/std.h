@@ -82,7 +82,7 @@ i64 eprint(const char* format, ...);
 
 
 // adapted from github:tsoding/nob.h
-char** __envp; // must be passed to execve, it is set up in INSERT_ENTRY_POINT
+char** __envp; // must be passed to execve, it is set up in std.linux.s
 
 struct arena; // the definition is below
 // the items live in the arena, so a command owns nothing and the arena must outlive it
@@ -97,6 +97,7 @@ i64 cmd_append_array(struct shell_command* cmd, char** items, i64 count);
 i64 cmd_await(i64 pid);
 i64 cmd_run(struct shell_command* cmd);
 i64 rebuild_needed(char* path_input, char* path_output, i32* out_is_needed);
+// returns 0 if up to date, 1 after running the replacement, or a negative error
 i64 rebuild_thyself(struct arena* arena, i32 argc, char** argv, char* path_input);
 i64 init_ignored_dir(char* path_dir, char* path_ignore);
 i64 find_executable(char* name, char** envp, char* result_buffer, i64 result_buffer_capacity, char** out_program_path);

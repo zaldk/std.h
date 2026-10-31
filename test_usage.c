@@ -1,7 +1,7 @@
 #define STD_IMPLEMENTATION
 #include "std.h"
 
-// INSERT_ENTRY_POINT()
+// Linked with std.linux.s for the freestanding entry point.
 
 i32 main(i32 argc, char* argv[], char* envp[]) {
     (void)argc;
@@ -30,8 +30,8 @@ i32 main(i32 argc, char* argv[], char* envp[]) {
         char* buffer = NIL;
         i64 buffer_size = 4096;
         buffer = (char*)syscall_mmap(NIL, buffer_size, MMAP_PROT_READ | MMAP_PROT_WRITE, MMAP_FLAG_ANONYMOUS | MMAP_FLAG_PRIVATE, -1, 0);
-        if ((i64)buffer == -1) {
-            print("[ERROR] MMAP failed\n");
+        if ((i64)buffer < 0) {
+            print("[ERROR] MMAP failed: %ld\n", (i64)buffer);
             UNREACHABLE();
         }
 

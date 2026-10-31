@@ -443,16 +443,20 @@ i64 rebuild_needed(char* path_input, char* path_output, i32* out_is_needed) {
         ERROR("Could not stat %s: %ld", path_output, ret_code);
         return -3;
     }
-    const i64 path_output_time = statbuf.modification_time_nanoseconds;
+    const i64 output_seconds = statbuf.modification_time_seconds;
+    const i64 output_nanoseconds = statbuf.modification_time_nanoseconds;
 
     if ((ret_code = syscall_stat(path_input, &statbuf)) < 0) {
         // a missing input is an error, the build needs it
         ERROR("Could not stat %s: %ld", path_input, ret_code);
         return -4;
     }
-    const i64 path_input_time = statbuf.modification_time_nanoseconds;
+    const i64 input_seconds = statbuf.modification_time_seconds;
+    const i64 input_nanoseconds = statbuf.modification_time_nanoseconds;
 
-    if (path_input_time > path_output_time) *out_is_needed = 1;
+    // Compare the whole timestamp, not just the fractional part of a second.
+    *out_is_needed = input_seconds > output_seconds ||
+        (input_seconds == output_seconds && input_nanoseconds > output_nanoseconds);
 
     return 0;
 }
@@ -481,8 +485,8 @@ i64 rebuild_thyself(struct arena* arena, i32 argc, char** argv, char* path_input
     ret = syscall_rename(path_output, path_output_old);
     if (ret < 0) { ERROR("Could not rename %s: %ld", path_output, ret); return -8; }
 
-    TRY(cmd_append(&cmd, "gcc"), "Could not append to the command", ret, -9);
-    TRY(cmd_append(&cmd, path_input, "-o", path_output), "Could not append to the command", ret, -10);
+    TRY(cmd_append(&cmd, "cc"), "Could not append to the command", ret, -9);
+    TRY(cmd_append(&cmd, path_input, "std.linux.s", "-o", path_output), "Could not append to the command", ret, -10);
     TRY(cmd_append(&cmd, "-nostdlib"), "Could not append to the command", ret, -11);
     TRY(cmd_append(&cmd, "-fno-stack-protector"), "Could not append to the command", ret, -12);
 
@@ -501,7 +505,7 @@ i64 rebuild_thyself(struct arena* arena, i32 argc, char** argv, char* path_input
     ret = cmd_run(&cmd);
     if (ret < 0) return ret;
 
-    return 0;
+    return 1; // only the replacement builder may continue the build
 }
 i64 init_ignored_dir(char* path_dir, char* path_ignore) {
     if (path_dir == NIL) return -1;
